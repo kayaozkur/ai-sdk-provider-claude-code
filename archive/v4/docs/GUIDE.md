@@ -1,4 +1,4 @@
-# Usage Guide (AI SDK v5-beta)
+# Usage Guide
 
 ## Essential Examples
 
@@ -8,16 +8,11 @@
 import { streamText } from 'ai';
 import { claudeCode } from 'ai-sdk-provider-claude-code';
 
-const result = streamText({
+const result = await streamText({
   model: claudeCode('sonnet'),
   prompt: 'Write a haiku about programming',
 });
 
-// v5 returns promises for different parts
-const text = await result.text;
-console.log(text);
-
-// Or stream chunks
 for await (const chunk of result.textStream) {
   process.stdout.write(chunk);
 }
@@ -29,23 +24,23 @@ for await (const chunk of result.textStream) {
 import { generateText } from 'ai';
 import { claudeCode } from 'ai-sdk-provider-claude-code';
 
-const messages: ModelMessage[] = [];
+const messages = [];
 
 // First turn
-messages.push({ role: 'user', content: [{ type: 'text', text: 'My name is Alice' }] });
-const response1 = await generateText({
+messages.push({ role: 'user', content: 'My name is Alice' });
+const { text: response1 } = await generateText({
   model: claudeCode('sonnet'),
   messages,
 });
-messages.push({ role: 'assistant', content: response1.content });
+messages.push({ role: 'assistant', content: response1 });
 
 // Second turn - remembers context
-messages.push({ role: 'user', content: [{ type: 'text', text: 'What is my name?' }] });
-const response2 = await generateText({
+messages.push({ role: 'user', content: 'What is my name?' });
+const { text: response2 } = await generateText({
   model: claudeCode('sonnet'),
   messages,
 });
-console.log(response2.text); // "Alice"
+console.log(response2); // "Alice"
 ```
 
 ### Object Generation with JSON Schema
@@ -55,7 +50,7 @@ import { generateObject } from 'ai';
 import { claudeCode } from 'ai-sdk-provider-claude-code';
 import { z } from 'zod';
 
-const result = await generateObject({
+const { object } = await generateObject({
   model: claudeCode('sonnet'),
   schema: z.object({
     name: z.string().describe('Full name'),
@@ -66,7 +61,7 @@ const result = await generateObject({
   prompt: 'Generate a profile for a software developer',
 });
 
-console.log(result.object);
+console.log(object);
 // {
 //   name: "Alex Chen",
 //   age: 28,
@@ -90,20 +85,21 @@ const timeoutId = setTimeout(() => {
 }, 600000); // 10 minutes
 
 try {
-  const result = await generateText({
+  const { text } = await generateText({
     model: claudeCode('opus'),
     prompt: 'Analyze this complex problem in detail...',
     abortSignal: controller.signal,
   });
   
   clearTimeout(timeoutId);
-  console.log(result.text);
+  console.log(text);
 } catch (error) {
   if (error.name === 'AbortError') {
     console.log('Request was cancelled');
   }
 }
 ```
+
 
 ### Session Management (Experimental)
 
@@ -112,62 +108,21 @@ import { generateText } from 'ai';
 import { claudeCode } from 'ai-sdk-provider-claude-code';
 
 // First message
-const result = await generateText({
+const { text, providerMetadata } = await generateText({
   model: claudeCode('sonnet'),
-  messages: [{ role: 'user', content: [{ type: 'text', text: 'My name is Bob.' }] }],
+  messages: [{ role: 'user', content: 'My name is Bob.' }],
 });
 
 // Resume using the session ID
-const sessionId = result.providerMetadata?.['claude-code']?.sessionId;
+const sessionId = providerMetadata?.['claude-code']?.sessionId;
 
-const response = await generateText({
+const { text: response } = await generateText({
   model: claudeCode('sonnet', { resume: sessionId }),
-  messages: [{ role: 'user', content: [{ type: 'text', text: 'What is my name?' }] }],
+  messages: [{ role: 'user', content: 'What is my name?' }],
 });
 ```
 
 `resume` continues a previous CLI session instead of starting a new one.
-
----
-
-## Key Changes in v5-beta
-
-### Message Format
-In v5, user messages must have content as an array of parts:
-
-```typescript
-// v4 format (NOT supported)
-{ role: 'user', content: 'Hello' }
-
-// v5 format (required)
-{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }
-```
-
-### Streaming API
-The streaming API returns a result object with promises:
-
-```typescript
-const result = streamText({
-  model: claudeCode('sonnet'),
-  prompt: 'Hello',
-});
-
-// Access different parts as promises
-const text = await result.text;
-const usage = await result.usage;
-const finishReason = await result.finishReason;
-```
-
-### Token Usage Properties
-Token usage properties have been renamed:
-
-```typescript
-// v4
-{ promptTokens: 10, completionTokens: 5 }
-
-// v5
-{ inputTokens: 10, outputTokens: 5, totalTokens: 15 }
-```
 
 ---
 
@@ -189,7 +144,7 @@ button.addEventListener('click', () => {
   controller.abort();
 });
 
-const result = await generateText({
+const { text } = await generateText({
   model: claudeCode('opus'),
   prompt: 'Write a story...',
   abortSignal: controller.signal,
@@ -227,7 +182,7 @@ const claude = createClaudeCode({
   }
 });
 
-const result = await generateText({
+const { text } = await generateText({
   model: claude('opus'),
   prompt: 'Hello, Claude!',
 });
@@ -339,7 +294,7 @@ const baseClaude = createClaudeCode({
 });
 
 // Override for a specific call
-const result = await generateText({
+const { text } = await generateText({
   model: baseClaude('opus', {
     disallowedTools: [], // Allow everything for this call
   }),
@@ -501,12 +456,12 @@ The provider uses the official `@anthropic-ai/claude-code` SDK which provides:
 The provider returns rich metadata including token usage, timing, and cost information:
 
 ```typescript
-const result = await generateText({
+const { text, usage, providerMetadata } = await generateText({
   model: claudeCode('sonnet'),
   prompt: 'Hello!',
 });
 
-console.log(result.providerMetadata);
+console.log(providerMetadata);
 // {
 //   "claude-code": {
 //     "sessionId": "abc-123-def",
@@ -536,7 +491,7 @@ import { claudeCode } from 'ai-sdk-provider-claude-code';
 import { z } from 'zod';
 
 // Generate a complete object
-const result = await generateObject({
+const { object } = await generateObject({
   model: claudeCode('sonnet'),
   schema: z.object({
     recipe: z.object({
@@ -552,7 +507,7 @@ const result = await generateObject({
 
 // Note: streamObject waits for complete response before parsing
 // Use generateObject for clarity since streaming doesn't provide benefits
-const analysisResult = await generateObject({
+const { object: analysis } = await generateObject({
   model: claudeCode('sonnet'),
   schema: z.object({
     analysis: z.string(),
@@ -562,7 +517,7 @@ const analysisResult = await generateObject({
   prompt: 'Analyze this review: "Great product!"',
 });
 
-console.log(analysisResult.object);
+console.log(analysis);
 ```
 
 **How it works**: The provider appends JSON generation instructions to your prompt and uses a tolerant JSON parser to extract valid output from Claude's response. Minor issues like trailing commas or comments are automatically handled, though this is still not as strict as native JSON mode.
@@ -578,7 +533,7 @@ console.log(analysisResult.object);
 #### Basic Objects
 Start with simple schemas and clear prompts:
 ```typescript
-const result = await generateObject({
+const { object } = await generateObject({
   model: claudeCode('sonnet'),
   schema: z.object({
     name: z.string(),
@@ -588,12 +543,12 @@ const result = await generateObject({
   prompt: 'Generate a developer profile',
 });
 ```
-[Full example](../../examples/generate-object-basic.ts)
+[Full example](../examples/generate-object-basic.ts)
 
 #### Nested Structures
 Build complex hierarchical data:
 ```typescript
-const result = await generateObject({
+const { object } = await generateObject({
   model: claudeCode('sonnet'),
   schema: z.object({
     company: z.object({
@@ -609,12 +564,12 @@ const result = await generateObject({
   prompt: 'Generate a company org structure',
 });
 ```
-[Full example](../../examples/generate-object-nested.ts)
+[Full example](../examples/generate-object-nested.ts)
 
 #### Constrained Generation
 Use Zod's validation features:
 ```typescript
-const result = await generateObject({
+const { object } = await generateObject({
   model: claudeCode('sonnet'),
   schema: z.object({
     status: z.enum(['pending', 'active', 'completed']),
@@ -624,7 +579,7 @@ const result = await generateObject({
   prompt: 'Generate a task with medium priority',
 });
 ```
-[Full example](../../examples/generate-object-constraints.ts)
+[Full example](../examples/generate-object-constraints.ts)
 
 
 ### Best Practices
@@ -637,9 +592,9 @@ const result = await generateObject({
 
 ### Common Patterns
 
-- **Data Models**: [User profiles, products, orders](../../examples/generate-object-nested.ts)
-- **Validation**: [Enums, constraints, regex patterns](../../examples/generate-object-constraints.ts)
-- **Basic Objects**: [Simple schemas and arrays](../../examples/generate-object-basic.ts)
+- **Data Models**: [User profiles, products, orders](../examples/generate-object-nested.ts)
+- **Validation**: [Enums, constraints, regex patterns](../examples/generate-object-constraints.ts)
+- **Basic Objects**: [Simple schemas and arrays](../examples/generate-object-basic.ts)
 - **Note**: For object generation, use `generateObject` instead of `streamObject` as streaming provides no benefits
 
 ## Object Generation Troubleshooting
@@ -724,13 +679,13 @@ const profileSchema = z.object({
 
 1. **Enable Debug Logging**:
 ```typescript
-const result = await generateObject({
+const { object, usage, warnings } = await generateObject({
   model: claudeCode('sonnet'),
   schema: yourSchema,
   prompt: yourPrompt,
 });
-console.log('Tokens used:', result.usage);
-console.log('Warnings:', result.warnings);
+console.log('Tokens used:', usage);
+console.log('Warnings:', warnings);
 ```
 
 2. **Test Schema Separately**:
@@ -760,7 +715,7 @@ Review our examples for implementation patterns
 - **Session management**: While sessions are supported, message history is the recommended approach
 - **Unsupported generation settings**: The following AI SDK settings are ignored and will generate warnings:
   - `temperature` - Claude Code SDK doesn't expose temperature control
-  - `maxOutputTokens` - Token limits aren't configurable via CLI
+  - `maxTokens` - Token limits aren't configurable via CLI
   - `topP`, `topK` - Sampling parameters aren't available
   - `presencePenalty`, `frequencyPenalty` - Penalty parameters aren't supported
   - `stopSequences` - Custom stop sequences aren't available
@@ -781,7 +736,7 @@ import {
 } from 'ai-sdk-provider-claude-code';
 
 try {
-  const result = await generateText({
+  const { text } = await generateText({
     model: claudeCode('opus'),
     prompt: 'Hello!',
   });
@@ -857,13 +812,11 @@ ai-sdk-provider-claude-code/
 │   ├── test-session.ts                # Session management testing
 │   └── tool-management.ts             # Tool access control (allow/disallow)
 ├── docs/                              # Documentation
-│   ├── ai-sdk-v4/                     # v4-specific documentation
-│   └── ai-sdk-v5/                     # v5-beta documentation
-│       ├── GUIDE.md                   # This guide
-│       ├── TROUBLESHOOTING.md         # Common issues and solutions
-│       ├── DEVELOPMENT-STATUS.md      # Development status
-│       └── V5_*.md                    # Migration documentation
+│   ├── GUIDE.md                       # Comprehensive guide (this file)
+│   ├── DEVELOPMENT-STATUS.md          # Development status and roadmap
+│   └── TROUBLESHOOTING.md             # Common issues and solutions
 ├── CHANGELOG.md                       # Version history
+├── CODE_REVIEW_PLAN.md                # Development planning documentation
 ├── LICENSE                            # MIT License
 ├── README.md                          # Main project documentation
 ├── eslint.config.js                   # ESLint configuration
@@ -886,8 +839,8 @@ ai-sdk-provider-claude-code/
 
 Contributions are welcome! Please read our contributing guidelines before submitting a PR.
 
-**Beta Focus Areas:**
-- v5-beta compatibility improvements
+**Alpha Focus Areas:**
+- Code structure improvements (AI-generated code cleanup)
 - Performance optimizations
 - Better error handling patterns
 - TypeScript type improvements
@@ -905,7 +858,7 @@ Note: Peer dependencies (like `zod`) use version ranges as per npm best practice
 
 ## License
 
-MIT - see [LICENSE](../../LICENSE) for details.
+MIT - see [LICENSE](../LICENSE) for details.
 
 ## Acknowledgments
 

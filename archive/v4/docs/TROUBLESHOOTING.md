@@ -1,6 +1,6 @@
-# Troubleshooting Guide (AI SDK v5-beta)
+# Troubleshooting Guide
 
-This guide documents common issues and solutions for the Claude Code AI SDK Provider with v5-beta.
+This guide documents common issues and solutions for the Claude Code AI SDK Provider.
 
 ## Common Issues
 
@@ -32,67 +32,7 @@ npx tsx ../examples/check-cli.ts
 npm install @anthropic-ai/claude-code
 ```
 
-### 3. v5 Message Format Errors
-
-**Problem**: Error about invalid message content format.
-
-**Solution**: In v5, user messages must have content as an array of parts:
-
-```typescript
-// ❌ Wrong (v4 format)
-{ role: 'user', content: 'Hello' }
-
-// ✅ Correct (v5 format)
-{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }
-```
-
-### 4. Streaming API Changes
-
-**Problem**: Streaming code from v4 doesn't work.
-
-**Solution**: v5 uses a new streaming pattern with promises:
-
-```typescript
-// ❌ Old v4 pattern
-const { textStream } = await streamText({
-  model: claudeCode('sonnet'),
-  prompt: 'Hello',
-});
-
-// ✅ New v5 pattern
-const result = streamText({
-  model: claudeCode('sonnet'),
-  prompt: 'Hello',
-});
-
-// Access parts as promises
-const text = await result.text;
-const usage = await result.usage;
-
-// Or stream chunks
-for await (const chunk of result.textStream) {
-  process.stdout.write(chunk);
-}
-```
-
-### 5. Token Usage Property Names
-
-**Problem**: Getting undefined for `promptTokens` or `completionTokens`.
-
-**Solution**: Token properties have been renamed in v5:
-
-```typescript
-// ❌ Old v4 names
-console.log(usage.promptTokens);
-console.log(usage.completionTokens);
-
-// ✅ New v5 names
-console.log(usage.inputTokens);
-console.log(usage.outputTokens);
-console.log(usage.totalTokens); // New in v5
-```
-
-### 6. Handling Long-Running Tasks
+### 3. Handling Long-Running Tasks
 
 **Problem**: Complex queries with Claude Opus 4 may take longer due to extended thinking mode.
 
@@ -109,13 +49,12 @@ const timeoutId = setTimeout(() => {
 }, 300000);
 
 try {
-  const result = await generateText({
+  const { text } = await generateText({
     model: claudeCode('opus'),
     prompt: 'Complex reasoning task...',
     abortSignal: controller.signal,
   });
   clearTimeout(timeoutId);
-  console.log(result.text);
 } catch (error) {
   if (error.name === 'AbortError') {
     console.log('Request timed out');
@@ -128,7 +67,7 @@ try {
 - Complex reasoning: 5-10 minutes may be needed
 - Very long tasks: Consider breaking into smaller chunks
 
-### 7. Object Generation Issues
+### 4. Object Generation Issues
 
 **Problem**: Claude returns text instead of valid JSON when using `generateObject`.
 
@@ -155,22 +94,20 @@ async function generateWithRetry(schema, prompt, maxRetries = 3) {
 }
 ```
 
-### 8. Session Management
+### 5. Session Management
 
 **Problem**: Conversations don't maintain context.
 
-**Solution**: Use message history with v5 format:
+**Solution**: Use message history (recommended pattern):
 
 ```typescript
-import { ModelMessage } from 'ai';
-
-const messages: ModelMessage[] = [
-  { role: 'user', content: [{ type: 'text', text: 'My name is Alice' }] },
-  { role: 'assistant', content: [{ type: 'text', text: 'Nice to meet you, Alice!' }] },
-  { role: 'user', content: [{ type: 'text', text: 'What is my name?' }] }
+const messages = [
+  { role: 'user', content: 'My name is Alice' },
+  { role: 'assistant', content: 'Nice to meet you, Alice!' },
+  { role: 'user', content: 'What is my name?' }
 ];
 
-const result = await generateText({
+const { text } = await generateText({
   model: claudeCode('sonnet'),
   messages, // Pass full conversation history
 });
@@ -178,7 +115,7 @@ const result = await generateText({
 
 **Note**: While the provider returns session IDs in metadata, the recommended approach is to use message history for conversation continuity.
 
-### 9. Error Handling
+### 6. Error Handling
 
 **Problem**: Need to handle different types of errors appropriately.
 
@@ -188,7 +125,7 @@ const result = await generateText({
 import { isAuthenticationError, getErrorMetadata } from 'ai-sdk-provider-claude-code';
 
 try {
-  const result = await generateText({
+  const { text } = await generateText({
     model: claudeCode('sonnet'),
     prompt: 'Hello',
   });
@@ -203,68 +140,6 @@ try {
     console.error('Error details:', metadata);
   }
 }
-```
-
-## v5-Specific Migration Issues
-
-### 1. Result Structure Changes
-
-**Problem**: Code expecting v4 result structure fails.
-
-**Solution**: Update to v5 result structure:
-
-```typescript
-// ❌ v4 pattern
-const { text, usage } = await generateText(...);
-
-// ✅ v5 pattern
-const result = await generateText(...);
-console.log(result.text);
-console.log(result.usage);
-```
-
-### 2. Stream Event Changes
-
-**Problem**: Stream events have different names.
-
-**Solution**: v5 includes a `stream-start` event:
-
-```typescript
-const result = streamText({
-  model: claudeCode('sonnet'),
-  prompt: 'Hello',
-});
-
-// v5 stream includes: stream-start, text-delta, finish
-for await (const chunk of result.fullStream) {
-  switch (chunk.type) {
-    case 'stream-start':
-      console.log('Stream started');
-      break;
-    case 'text-delta':
-      process.stdout.write(chunk.textDelta);
-      break;
-    case 'finish':
-      console.log('Stream finished');
-      break;
-  }
-}
-```
-
-### 3. Unsupported Settings
-
-**Problem**: Getting warnings about unsupported settings.
-
-**Solution**: Some v4 settings are renamed or removed in v5:
-
-```typescript
-// ❌ v4 setting names
-{ maxTokens: 1000 }
-
-// ✅ v5 setting names
-{ maxOutputTokens: 1000 }
-
-// Note: Many settings like temperature, topP, etc. are still not supported by Claude Code SDK
 ```
 
 ## Debugging Tips
@@ -284,12 +159,12 @@ npx tsx ../examples/integration-test.ts
 ### 2. Enable Debug Logging
 ```typescript
 // Log provider metadata to debug issues
-const result = await generateText({
+const { text, providerMetadata } = await generateText({
   model: claudeCode('sonnet'),
   prompt: 'Test',
 });
 
-console.log('Metadata:', result.providerMetadata);
+console.log('Metadata:', providerMetadata);
 // Shows: sessionId, costUsd, durationMs, rawUsage
 ```
 
@@ -347,10 +222,10 @@ npx tsx ../examples/long-running-tasks.ts
 
 ## Getting Help
 
-1. **Check Examples**: Review the `../../examples` directory for working code
-2. **Integration Test**: Run `npx tsx ../../examples/integration-test.ts` to verify setup
+1. **Check Examples**: Review the `../examples` directory for working code
+2. **Integration Test**: Run `npx tsx ../examples/integration-test.ts` to verify setup
 3. **GitHub Issues**: Report bugs at https://github.com/ben-vargas/ai-sdk-provider-claude-code/issues
-4. **Documentation**: See the README.md and GUIDE.md for detailed API documentation
+4. **Documentation**: See the main README.md and GUIDE.md for detailed API documentation
 
 ## Common Error Messages
 
@@ -361,5 +236,3 @@ npx tsx ../examples/long-running-tasks.ts
 | "No object generated" | Invalid JSON response | Simplify schema, improve prompt |
 | "Request timeout" | Task took too long | Increase timeout with AbortSignal |
 | "Session not found" | Invalid session ID | Use message history instead |
-| "Invalid message content" | v4 message format | Update to v5 array format |
-| "promptTokens is undefined" | v4 property names | Use inputTokens/outputTokens |

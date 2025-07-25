@@ -1,4 +1,4 @@
-import type { LanguageModelV1Prompt } from '@ai-sdk/provider';
+import type { ModelMessage } from 'ai';
 
 /**
  * Converts AI SDK prompt format to Claude Code SDK message format.
@@ -22,8 +22,9 @@ import type { LanguageModelV1Prompt } from '@ai-sdk/provider';
  * - In 'object-json' mode, explicit JSON instructions are appended
  */
 export function convertToClaudeCodeMessages(
-  prompt: LanguageModelV1Prompt,
-  mode?: { type: 'regular' | 'object-json' | 'object-tool' }
+  prompt: readonly ModelMessage[],
+  mode: { type: 'regular' | 'object-json' | 'object-tool' } = { type: 'regular' },
+  jsonSchema?: unknown
 ): {
   messagesPrompt: string;
   systemPrompt?: string;
@@ -61,9 +62,10 @@ export function convertToClaudeCodeMessages(
         }
         break;
       
-      case 'assistant':
+      case 'assistant': {
+        let assistantContent = '';
         if (typeof message.content === 'string') {
-          messages.push(`Assistant: ${message.content}`);
+          assistantContent = message.content;
         } else {
           const textParts = message.content
             .filter(part => part.type === 'text')
@@ -71,21 +73,28 @@ export function convertToClaudeCodeMessages(
             .join('\n');
           
           if (textParts) {
-            messages.push(`Assistant: ${textParts}`);
+            assistantContent = textParts;
           }
           
           // Handle tool calls if present
           const toolCalls = message.content.filter(part => part.type === 'tool-call');
           if (toolCalls.length > 0) {
             // For now, we'll just note that tool calls were made
-            messages.push(`Assistant: [Tool calls made]`);
+            assistantContent += `\n[Tool calls made]`;
           }
         }
+        messages.push(`Assistant: ${assistantContent}`);
         break;
+      }
       
       case 'tool':
         // Tool results could be included in the conversation
-        messages.push(`Tool Result (${message.content[0].toolName}): ${JSON.stringify(message.content[0].result)}`);
+        for (const tool of message.content) {
+            const resultText = tool.output.type === 'text' 
+              ? tool.output.value 
+              : JSON.stringify(tool.output.value);
+            messages.push(`Tool Result (${tool.toolName}): ${resultText}`);
+        }
         break;
     }
   }
@@ -126,20 +135,22 @@ export function convertToClaudeCodeMessages(
   }
   
   // For JSON mode, add explicit instruction to ensure JSON output
-  if (mode?.type === 'object-json') {
-    // Make the JSON instruction even more explicit
-    finalPrompt = `${finalPrompt}
+  if (mode?.type === 'object-json' && jsonSchema) {
+    // Prepend JSON instructions at the very beginning, before any messages
+    const schemaStr = JSON.stringify(jsonSchema, null, 2);
+    
+    finalPrompt = `CRITICAL: You MUST respond with ONLY a JSON object. NO other text, NO explanations, NO questions.
 
-CRITICAL INSTRUCTION: You MUST respond with ONLY valid JSON. Follow these rules EXACTLY:
-1. Start your response with an opening brace {
-2. End your response with a closing brace }
-3. Do NOT include any text before the opening brace
-4. Do NOT include any text after the closing brace
-5. Do NOT use markdown code blocks or backticks
-6. Do NOT include explanations or commentary
-7. The ENTIRE response must be valid JSON that can be parsed with JSON.parse()
+Your response MUST start with { and end with }
 
-Begin your response with { and end with }`;
+The JSON MUST match this EXACT schema:
+${schemaStr}
+
+Now, based on the following conversation, generate ONLY the JSON object with the exact fields specified above:
+
+${finalPrompt}
+
+Remember: Your ENTIRE response must be ONLY the JSON object, starting with { and ending with }`;
   }
   
   return {

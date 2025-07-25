@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-beta.1] - 2025-07-24
+
+### Changed
+- **BREAKING**: Complete rewrite for Vercel AI SDK v5-beta compatibility
+- **BREAKING**: Now implements `LanguageModelV2` interface instead of `LanguageModelV1`
+- **BREAKING**: Requires AI SDK v5-beta (`ai@^4.0.0` or later)
+- **BREAKING**: New streaming API pattern - `streamText` returns result object with `textStream` async iterator
+- **BREAKING**: Token usage properties renamed: `promptTokens` → `inputTokens`, `completionTokens` → `outputTokens`
+- **BREAKING**: Message types changed to `ModelMessage` instead of `UIMessage`/`CoreMessage`
+- **BREAKING**: No backwards compatibility with v0.x - use v0.x for AI SDK v4
+- Updated all examples to use v5-beta patterns
+- Added `stream-start` event emission in streaming responses
+- Added proper `text-start` and `text-end` events for text parts
+- Badge status changed from "alpha" to "beta"
+
+### Added
+- Version compatibility table in README
+- Migration guide in `docs/ai-sdk-v5/` directory
+- Support for v5's content-first message format
+- Better TypeScript type safety with v5 types
+- Schema passing for object generation via `responseFormat.schema`
+
+### Fixed
+- Stream response now includes all required v5 events
+- Proper handling of message content as arrays of parts
+- TypeScript strict mode compliance
+- Object generation now properly uses schema information from responseFormat
+- Fixed `result.text` hanging issue by implementing proper text-start/end events
+- tool-management.ts example updated to use streaming pattern
+
+### Note
+Version 0.x releases continue on the [`ai-sdk-v4`](https://github.com/ben-vargas/ai-sdk-provider-claude-code/tree/ai-sdk-v4) branch for AI SDK v4 compatibility.
+
+## [0.2.2] - 2025-06-20
+
+### Changed
+- Updated terminology from "Claude Code CLI" to "Claude Code SDK" throughout codebase
+- Updated all documentation, comments, error messages, and examples to reflect SDK usage
+- Clarified that the provider uses the SDK component from @anthropic-ai/claude-code
+
 ## [0.2.0] - 2025-06-19
 
 ### Added

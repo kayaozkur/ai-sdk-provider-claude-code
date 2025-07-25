@@ -25,7 +25,7 @@ async function main() {
       prompt: 'Write exactly 5 words.',
       // These parameters are part of the AI SDK spec but are ignored by Claude Code SDK
       temperature: 0.1,        // ❌ Ignored - CLI doesn't support temperature control
-      maxTokens: 10,          // ❌ Ignored - CLI doesn't support output length limits
+      maxOutputTokens: 10,    // ❌ Ignored - CLI doesn't support output length limits
       topP: 0.9,              // ❌ Ignored - CLI doesn't support nucleus sampling
       topK: 50,               // ❌ Ignored - CLI doesn't support top-k sampling
       presencePenalty: 0.5,   // ❌ Ignored - CLI doesn't support repetition penalties
@@ -82,7 +82,7 @@ async function main() {
       model: claudeCode('opus'),
       prompt: 'Count to 3',
       temperature: 0,  // ❌ Still ignored in streaming mode
-      maxTokens: 5,    // ❌ Still ignored in streaming mode
+      maxOutputTokens: 5,    // ❌ Still ignored in streaming mode
     });
 
     console.log('   Streaming: ');

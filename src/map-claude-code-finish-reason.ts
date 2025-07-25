@@ -1,4 +1,4 @@
-import type { LanguageModelV1FinishReason } from '@ai-sdk/provider';
+import type { LanguageModelV2FinishReason } from '@ai-sdk/provider';
 
 /**
  * Maps Claude Code SDK result subtypes to AI SDK finish reasons.
@@ -21,7 +21,7 @@ import type { LanguageModelV1FinishReason } from '@ai-sdk/provider';
  */
 export function mapClaudeCodeFinishReason(
   subtype?: string
-): LanguageModelV1FinishReason {
+): LanguageModelV2FinishReason {
   switch (subtype) {
     case 'success':
       return 'stop';

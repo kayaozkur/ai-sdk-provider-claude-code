@@ -5,18 +5,28 @@
  * and shows the metadata returned from each request.
  */
 
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import { claudeCode } from '../dist/index.js';
 
 async function main() {
   try {
-    // Basic text generation
-    const { text, usage, providerMetadata } = await generateText({
+    // Basic text generation - streamText returns immediately, not a promise
+    const result = streamText({
       model: claudeCode('opus'),
       prompt: 'Explain the concept of recursion in programming in 2-3 sentences.',
     });
 
-    console.log('Response:', text);
+    // Stream the response
+    console.log('Response:');
+    for await (const textPart of result.textStream) {
+      process.stdout.write(textPart);
+    }
+    console.log('\n');
+
+    // Get final results
+    const usage = await result.usage;
+    const providerMetadata = await result.providerMetadata;
+
     console.log('\nToken usage:', usage);
     
     // Display provider-specific metadata
@@ -36,7 +46,7 @@ async function main() {
       
       // Cost information
       if (typeof metadata.costUsd === 'number') {
-        console.log(`- Cost: $${metadata.costUsd.toFixed(4)}`);
+        console.log(`- Cost: ${metadata.costUsd.toFixed(4)}`);
         console.log('  (Pro/Max subscribers: covered by subscription)');
       }
       
@@ -53,5 +63,6 @@ async function main() {
     console.log('3. Run check-cli.ts to verify setup');
   }
 }
+
 
 main().catch(console.error);

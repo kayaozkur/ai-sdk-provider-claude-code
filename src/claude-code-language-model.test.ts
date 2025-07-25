@@ -66,15 +66,14 @@ describe('ClaudeCodeLanguageModel', () => {
       vi.mocked(mockQuery).mockReturnValue(mockResponse as any);
 
       const result = await model.doGenerate({
-        inputFormat: 'messages',
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Say hello' }] }],
-        mode: { type: 'regular' },
       });
 
-      expect(result.text).toBe('Hello, world!');
+      expect(result.content).toEqual([{ type: 'text', text: 'Hello, world!' }]);
       expect(result.usage).toEqual({
-        promptTokens: 10,
-        completionTokens: 5,
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
       });
       expect(result.finishReason).toBe('stop');
     });
@@ -103,9 +102,7 @@ describe('ClaudeCodeLanguageModel', () => {
       vi.mocked(mockQuery).mockReturnValue(mockResponse as any);
 
       const result = await model.doGenerate({
-        inputFormat: 'messages',
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Complex task' }] }],
-        mode: { type: 'regular' },
       });
 
       expect(result.finishReason).toBe('length');
@@ -124,9 +121,7 @@ describe('ClaudeCodeLanguageModel', () => {
       abortController.abort(abortReason);
 
       const promise = model.doGenerate({
-        inputFormat: 'messages',
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Test abort' }] }],
-        mode: { type: 'regular' },
         abortSignal: abortController.signal,
       });
 
@@ -168,9 +163,7 @@ describe('ClaudeCodeLanguageModel', () => {
       vi.mocked(mockQuery).mockReturnValue(mockResponse as any);
 
       const result = await model.doStream({
-        inputFormat: 'messages',
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Say hello' }] }],
-        mode: { type: 'regular' },
       });
 
       const chunks: any[] = [];
@@ -182,21 +175,26 @@ describe('ClaudeCodeLanguageModel', () => {
         chunks.push(value);
       }
 
-      expect(chunks).toHaveLength(3);
-      expect(chunks[0]).toEqual({
-        type: 'text-delta',
-        textDelta: 'Hello',
+      expect(chunks).toHaveLength(4);
+      expect(chunks[0]).toMatchObject({
+        type: 'stream-start',
+        warnings: [],
       });
-      expect(chunks[1]).toEqual({
+      expect(chunks[1]).toMatchObject({
         type: 'text-delta',
-        textDelta: ', world!',
+        delta: 'Hello',
       });
       expect(chunks[2]).toMatchObject({
+        type: 'text-delta',
+        delta: ', world!',
+      });
+      expect(chunks[3]).toMatchObject({
         type: 'finish',
         finishReason: 'stop',
         usage: {
-          promptTokens: 10,
-          completionTokens: 5,
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
         },
       });
     });
@@ -233,10 +231,9 @@ describe('ClaudeCodeLanguageModel', () => {
       vi.mocked(mockQuery).mockReturnValue(mockResponse as any);
 
       const result = await model.doStream({
-        inputFormat: 'messages',
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Return JSON' }] }],
-        mode: { type: 'object-json' },
         temperature: 0.5, // This will trigger a warning
+        responseFormat: { type: 'json' }, // Add responseFormat to trigger JSON mode
       });
 
       const chunks: any[] = [];
@@ -248,17 +245,27 @@ describe('ClaudeCodeLanguageModel', () => {
         chunks.push(value);
       }
 
-      expect(chunks).toHaveLength(2);
-      expect(chunks[0]).toEqual({
-        type: 'text-delta',
-        textDelta: '{\n  "a": 1,\n  "b": 2\n}',
+      expect(chunks).toHaveLength(3);
+      expect(chunks[0]).toMatchObject({
+        type: 'stream-start',
+        warnings: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'unsupported-setting',
+            setting: 'temperature',
+          }),
+        ]),
       });
       expect(chunks[1]).toMatchObject({
+        type: 'text-delta',
+        delta: '{\n  "a": 1,\n  "b": 2\n}',
+      });
+      expect(chunks[2]).toMatchObject({
         type: 'finish',
         finishReason: 'stop',
         usage: {
-          promptTokens: 6,
-          completionTokens: 3,
+          inputTokens: 6,
+          outputTokens: 3,
+          totalTokens: 9,
         },
         providerMetadata: {
           'claude-code': {
@@ -269,8 +276,9 @@ describe('ClaudeCodeLanguageModel', () => {
         },
       });
 
-      expect(result.warnings).toHaveLength(1);
-      expect(result.warnings?.[0]).toMatchObject({
+      // Warnings are now included in the stream-start event
+      expect(chunks[0].warnings).toHaveLength(1);
+      expect(chunks[0].warnings?.[0]).toMatchObject({
         type: 'unsupported-setting',
         setting: 'temperature',
       });
@@ -306,9 +314,8 @@ describe('ClaudeCodeLanguageModel', () => {
       vi.mocked(mockQuery).mockReturnValue(mockResponse as any);
 
       const result = await model.doStream({
-        inputFormat: 'messages',
         prompt: [{ role: 'user', content: [{ type: 'text', text: 'Return invalid JSON' }] }],
-        mode: { type: 'object-json' },
+        responseFormat: { type: 'json' }, // Add responseFormat to trigger JSON mode
       });
 
       const chunks: any[] = [];
@@ -320,18 +327,23 @@ describe('ClaudeCodeLanguageModel', () => {
         chunks.push(value);
       }
 
-      expect(chunks).toHaveLength(2);
-      // When JSON is malformed, extractJson returns the original text
-      expect(chunks[0]).toEqual({
-        type: 'text-delta',
-        textDelta: 'Here is the JSON: {"a": 1, "b": invalid}',
+      expect(chunks).toHaveLength(3);
+      expect(chunks[0]).toMatchObject({
+        type: 'stream-start',
+        warnings: [],
       });
+      // When JSON is malformed, extractJson returns the original text
       expect(chunks[1]).toMatchObject({
+        type: 'text-delta',
+        delta: 'Here is the JSON: {"a": 1, "b": invalid}',
+      });
+      expect(chunks[2]).toMatchObject({
         type: 'finish',
         finishReason: 'stop',
         usage: {
-          promptTokens: 8,
-          completionTokens: 5,
+          inputTokens: 8,
+          outputTokens: 5,
+          totalTokens: 13,
         },
       });
     });
@@ -357,7 +369,7 @@ describe('ClaudeCodeLanguageModel', () => {
     
     it('should have correct specification version', () => {
       const model = new ClaudeCodeLanguageModel({ id: 'sonnet' });
-      expect(model.specificationVersion).toBe('v1');
+      expect(model.specificationVersion).toBe('v2');
     });
     
     it('should support object generation mode', () => {

@@ -1,8 +1,9 @@
 import type {
-  LanguageModelV1,
-  LanguageModelV1CallWarning,
-  LanguageModelV1FinishReason,
-  LanguageModelV1StreamPart,
+  LanguageModelV2,
+  LanguageModelV2CallWarning,
+  LanguageModelV2FinishReason,
+  LanguageModelV2StreamPart,
+  LanguageModelV2Usage,
   JSONValue,
 } from '@ai-sdk/provider';
 import { NoSuchModelError, APICallError, LoadAPIKeyError } from '@ai-sdk/provider';
@@ -99,10 +100,11 @@ const modelMap: Record<string, string> = {
  * });
  * ```
  */
-export class ClaudeCodeLanguageModel implements LanguageModelV1 {
-  readonly specificationVersion = 'v1' as const;
+export class ClaudeCodeLanguageModel implements LanguageModelV2 {
+  readonly specificationVersion = 'v2' as const;
   readonly defaultObjectGenerationMode = 'json' as const;
   readonly supportsImageUrls = false;
+  readonly supportedUrls = {};
   readonly supportsStructuredOutputs = false;
 
   readonly modelId: ClaudeCodeModelId;
@@ -144,15 +146,14 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
   }
 
   private generateAllWarnings(
-    options: Parameters<LanguageModelV1['doGenerate']>[0] | Parameters<LanguageModelV1['doStream']>[0],
+    options: Parameters<LanguageModelV2['doGenerate']>[0] | Parameters<LanguageModelV2['doStream']>[0],
     prompt: string
-  ): LanguageModelV1CallWarning[] {
-    const warnings: LanguageModelV1CallWarning[] = [];
+  ): LanguageModelV2CallWarning[] {
+    const warnings: LanguageModelV2CallWarning[] = [];
     const unsupportedParams: string[] = [];
     
     // Check for unsupported parameters
     if (options.temperature !== undefined) unsupportedParams.push('temperature');
-    if (options.maxTokens !== undefined) unsupportedParams.push('maxTokens');
     if (options.topP !== undefined) unsupportedParams.push('topP');
     if (options.topK !== undefined) unsupportedParams.push('topK');
     if (options.presencePenalty !== undefined) unsupportedParams.push('presencePenalty');
@@ -316,7 +317,7 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
   private validateJsonExtraction(
     originalText: string,
     extractedJson: string
-  ): { valid: boolean; warning?: LanguageModelV1CallWarning } {
+  ): { valid: boolean; warning?: LanguageModelV2CallWarning } {
     // If the extracted JSON is the same as original, extraction likely failed
     if (extractedJson === originalText) {
       return {
@@ -344,9 +345,18 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
   }
 
   async doGenerate(
-    options: Parameters<LanguageModelV1['doGenerate']>[0],
-  ): Promise<Awaited<ReturnType<LanguageModelV1['doGenerate']>>> {
-    const { messagesPrompt, warnings: messageWarnings } = convertToClaudeCodeMessages(options.prompt, options.mode);
+    options: Parameters<LanguageModelV2['doGenerate']>[0],
+  ): Promise<Awaited<ReturnType<LanguageModelV2['doGenerate']>>> {
+    // Determine mode based on responseFormat
+    const mode = options.responseFormat?.type === 'json' 
+      ? { type: 'object-json' as const } 
+      : { type: 'regular' as const };
+    
+    const { messagesPrompt, warnings: messageWarnings } = convertToClaudeCodeMessages(
+      options.prompt, 
+      mode,
+      options.responseFormat?.type === 'json' ? options.responseFormat.schema : undefined
+    );
 
     const abortController = new AbortController();
     let abortListener: (() => void) | undefined;
@@ -358,12 +368,12 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
     const queryOptions = this.createQueryOptions(abortController);
 
     let text = '';
-    let usage = { promptTokens: 0, completionTokens: 0 };
-    let finishReason: LanguageModelV1FinishReason = 'stop';
+    let usage: LanguageModelV2Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+    let finishReason: LanguageModelV2FinishReason = 'stop';
     let costUsd: number | undefined;
     let durationMs: number | undefined;
     let rawUsage: unknown | undefined;
-    const warnings: LanguageModelV1CallWarning[] = this.generateAllWarnings(options, messagesPrompt);
+    const warnings: LanguageModelV2CallWarning[] = this.generateAllWarnings(options, messagesPrompt);
     
     // Add warnings from message conversion
     if (messageWarnings) {
@@ -394,10 +404,14 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
           if ('usage' in message) {
             rawUsage = message.usage;
             usage = {
-              promptTokens: (message.usage.cache_creation_input_tokens ?? 0) + 
+              inputTokens: (message.usage.cache_creation_input_tokens ?? 0) + 
                            (message.usage.cache_read_input_tokens ?? 0) +
                            (message.usage.input_tokens ?? 0),
-              completionTokens: message.usage.output_tokens ?? 0,
+              outputTokens: message.usage.output_tokens ?? 0,
+              totalTokens: (message.usage.cache_creation_input_tokens ?? 0) + 
+                           (message.usage.cache_read_input_tokens ?? 0) +
+                           (message.usage.input_tokens ?? 0) + 
+                           (message.usage.output_tokens ?? 0),
             };
           }
 
@@ -420,8 +434,8 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
       }
     }
 
-    // Extract JSON if in object-json mode
-    if (options.mode?.type === 'object-json' && text) {
+    // Extract JSON if responseFormat indicates JSON mode
+    if (options.responseFormat?.type === 'json' && text) {
       const extracted = extractJson(text);
       const validation = this.validateJsonExtraction(text, extracted);
       
@@ -433,14 +447,10 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
     }
 
     return {
-      text: text || undefined,
+      content: [{ type: 'text', text }],
       usage,
       finishReason,
-      rawCall: {
-        rawPrompt: messagesPrompt,
-        rawSettings: queryOptions,
-      },
-      warnings: warnings.length > 0 ? warnings : undefined,
+      warnings,
       response: {
         id: generateId(),
         timestamp: new Date(),
@@ -461,9 +471,18 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
   }
 
   async doStream(
-    options: Parameters<LanguageModelV1['doStream']>[0],
-  ): Promise<Awaited<ReturnType<LanguageModelV1['doStream']>>> {
-    const { messagesPrompt, warnings: messageWarnings } = convertToClaudeCodeMessages(options.prompt, options.mode);
+    options: Parameters<LanguageModelV2['doStream']>[0],
+  ): Promise<Awaited<ReturnType<LanguageModelV2['doStream']>>> {
+    // Determine mode based on responseFormat
+    const mode = options.responseFormat?.type === 'json' 
+      ? { type: 'object-json' as const } 
+      : { type: 'regular' as const };
+    
+    const { messagesPrompt, warnings: messageWarnings } = convertToClaudeCodeMessages(
+      options.prompt, 
+      mode,
+      options.responseFormat?.type === 'json' ? options.responseFormat.schema : undefined
+    );
 
     const abortController = new AbortController();
     let abortListener: (() => void) | undefined;
@@ -474,7 +493,7 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
 
     const queryOptions = this.createQueryOptions(abortController);
 
-    const warnings: LanguageModelV1CallWarning[] = this.generateAllWarnings(options, messagesPrompt);
+    const warnings: LanguageModelV2CallWarning[] = this.generateAllWarnings(options, messagesPrompt);
     
     // Add warnings from message conversion
     if (messageWarnings) {
@@ -486,16 +505,20 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
       });
     }
 
-    const stream = new ReadableStream<LanguageModelV1StreamPart>({
+    const stream = new ReadableStream<LanguageModelV2StreamPart>({
       start: async (controller) => {
         try {
+          // Emit stream-start with warnings
+          controller.enqueue({ type: 'stream-start', warnings });
+          
           const response = query({
             prompt: messagesPrompt,
             options: queryOptions,
           });
 
-          let usage = { promptTokens: 0, completionTokens: 0 };
+          let usage: LanguageModelV2Usage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
           let accumulatedText = '';
+          let textPartId: string | undefined;
 
           for await (const message of response) {
             if (message.type === 'assistant') {
@@ -506,12 +529,22 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
               if (text) {
                 accumulatedText += text;
                 
-                // In object-json mode, we need to accumulate the full text
-                // and extract JSON at the end, so don't stream individual deltas
-                if (options.mode?.type !== 'object-json') {
+                // In JSON mode, we accumulate the text and extract JSON at the end
+                // Otherwise, stream the text as it comes
+                if (options.responseFormat?.type !== 'json') {
+                  // Emit text-start if this is the first text
+                  if (!textPartId) {
+                    textPartId = generateId();
+                    controller.enqueue({
+                      type: 'text-start',
+                      id: textPartId,
+                    });
+                  }
+                  
                   controller.enqueue({
                     type: 'text-delta',
-                    textDelta: text,
+                    id: textPartId,
+                    delta: text,
                   });
                 }
               }
@@ -520,20 +553,24 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
               if ('usage' in message) {
                 rawUsage = message.usage;
                 usage = {
-                  promptTokens: (message.usage.cache_creation_input_tokens ?? 0) + 
+                  inputTokens: (message.usage.cache_creation_input_tokens ?? 0) + 
                                (message.usage.cache_read_input_tokens ?? 0) +
                                (message.usage.input_tokens ?? 0),
-                  completionTokens: message.usage.output_tokens ?? 0,
+                  outputTokens: message.usage.output_tokens ?? 0,
+                  totalTokens: (message.usage.cache_creation_input_tokens ?? 0) + 
+                               (message.usage.cache_read_input_tokens ?? 0) +
+                               (message.usage.input_tokens ?? 0) + 
+                               (message.usage.output_tokens ?? 0),
                 };
               }
 
-              const finishReason: LanguageModelV1FinishReason = mapClaudeCodeFinishReason(message.subtype);
+              const finishReason: LanguageModelV2FinishReason = mapClaudeCodeFinishReason(message.subtype);
 
               // Store session ID in the model instance
               this.setSessionId(message.session_id);
               
-              // In object-json mode, extract JSON and send the full text at once
-              if (options.mode?.type === 'object-json' && accumulatedText) {
+              // Check if we need to extract JSON based on responseFormat
+              if (options.responseFormat?.type === 'json' && accumulatedText) {
                 const extractedJson = extractJson(accumulatedText);
                 this.validateJsonExtraction(accumulatedText, extractedJson);
                 
@@ -541,9 +578,26 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
                 // So we'll just send the extracted JSON anyway
                 // In the future, we could emit a warning stream part if the SDK supports it
                 
+                // Emit text-start/delta/end for JSON content
+                const jsonTextId = generateId();
+                controller.enqueue({
+                  type: 'text-start',
+                  id: jsonTextId,
+                });
                 controller.enqueue({
                   type: 'text-delta',
-                  textDelta: extractedJson,
+                  id: jsonTextId,
+                  delta: extractedJson,
+                });
+                controller.enqueue({
+                  type: 'text-end',
+                  id: jsonTextId,
+                });
+              } else if (textPartId) {
+                // Close the text part if it was opened
+                controller.enqueue({
+                  type: 'text-end',
+                  id: textPartId,
                 });
               }
               
@@ -608,11 +662,6 @@ export class ClaudeCodeLanguageModel implements LanguageModelV1 {
 
     return {
       stream,
-      rawCall: {
-        rawPrompt: messagesPrompt,
-        rawSettings: queryOptions,
-      },
-      warnings: warnings.length > 0 ? warnings : undefined,
       request: {
         body: messagesPrompt,
       },

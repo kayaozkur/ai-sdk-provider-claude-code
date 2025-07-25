@@ -10,7 +10,7 @@
  * as settings.json permissions.
  */
 
-import { generateText } from 'ai';
+import { streamText } from 'ai';
 import { createClaudeCode } from '../dist/index.js';
 
 async function testToolManagement() {
@@ -21,10 +21,16 @@ async function testToolManagement() {
   const defaultClaude = createClaudeCode();
   
   try {
-    const { text: response1 } = await generateText({
+    const result1 = streamText({
       model: defaultClaude('sonnet'),
       prompt: 'What is 2 + 2? Just give me the number.',
     });
+    
+    // Collect text from stream
+    let response1 = '';
+    for await (const chunk of result1.textStream) {
+      response1 += chunk;
+    }
     console.log('Response:', response1.trim());
     console.log('   (All built-in and MCP tools would be allowed)');
   } catch (error) {
@@ -40,10 +46,16 @@ async function testToolManagement() {
   });
 
   try {
-    const { text: response2 } = await generateText({
+    const result2 = streamText({
       model: bashOnlyClaude('sonnet'),
       prompt: 'Can you show me the current date? Use the date command.',
     });
+    
+    // Collect text from stream
+    let response2 = '';
+    for await (const chunk of result2.textStream) {
+      response2 += chunk;
+    }
     console.log('Response:', response2.trim());
     console.log('   (Only allowed specific Bash commands)');
   } catch (error) {
@@ -59,10 +71,16 @@ async function testToolManagement() {
   });
 
   try {
-    const { text: response3 } = await generateText({
+    const result3 = streamText({
       model: readOnlyClaude('sonnet'),
       prompt: 'What is the capital of France? Just the city name.',
     });
+    
+    // Collect text from stream
+    let response3 = '';
+    for await (const chunk of result3.textStream) {
+      response3 += chunk;
+    }
     console.log('Response:', response3.trim());
     console.log('   (Can read files but not write/edit/delete)');
   } catch (error) {
@@ -85,10 +103,16 @@ async function testToolManagement() {
   });
 
   try {
-    const { text: response4 } = await generateText({
+    const result4 = streamText({
       model: mixedClaude('sonnet'),
       prompt: 'What is the result of 5 * 8?',
     });
+    
+    // Collect text from stream
+    let response4 = '';
+    for await (const chunk of result4.textStream) {
+      response4 += chunk;
+    }
     console.log('Response:', response4.trim());
     console.log('   (Only allowed read operations and git status)');
   } catch (error) {
@@ -104,10 +128,16 @@ async function testToolManagement() {
   });
 
   try {
-    const { text: response5 } = await generateText({
+    const result5 = streamText({
       model: noToolsClaude('sonnet'),
       prompt: 'What programming language is this: console.log("Hello")?',
     });
+    
+    // Collect text from stream
+    let response5 = '';
+    for await (const chunk of result5.textStream) {
+      response5 += chunk;
+    }
     console.log('Response:', response5.trim());
     console.log('   (No tools allowed - explicit empty allowlist blocks everything)');
   } catch (error) {
@@ -123,13 +153,19 @@ async function testToolManagement() {
   });
 
   try {
-    const { text: response6 } = await generateText({
+    const result6 = streamText({
       model: baseClaude('sonnet', {
         // Override to allow everything for this specific call
         disallowedTools: [],
       }),
       prompt: 'Name a popular web framework.',
     });
+    
+    // Collect text from stream
+    let response6 = '';
+    for await (const chunk of result6.textStream) {
+      response6 += chunk;
+    }
     console.log('Response:', response6.trim());
     console.log('   (Model override allows all tools for this call)');
   } catch (error) {

@@ -1,4 +1,4 @@
-import type { LanguageModelV1, ProviderV1 } from '@ai-sdk/provider';
+import type { LanguageModelV2, ProviderV2 } from '@ai-sdk/provider';
 import { NoSuchModelError } from '@ai-sdk/provider';
 import { ClaudeCodeLanguageModel, type ClaudeCodeModelId } from './claude-code-language-model.js';
 import type { ClaudeCodeSettings } from './types.js';
@@ -21,7 +21,7 @@ import { getLogger } from './logger.js';
  * const languageModel = claudeCode.languageModel('opus', { maxTurns: 10 });
  * ```
  */
-export interface ClaudeCodeProvider extends ProviderV1 {
+export interface ClaudeCodeProvider extends ProviderV2 {
   /**
    * Creates a language model instance for the specified model ID.
    * This is a shorthand for calling `languageModel()`.
@@ -30,7 +30,7 @@ export interface ClaudeCodeProvider extends ProviderV1 {
    * @param settings - Optional settings to configure the model
    * @returns A language model instance
    */
-  (modelId: ClaudeCodeModelId, settings?: ClaudeCodeSettings): LanguageModelV1;
+  (modelId: ClaudeCodeModelId, settings?: ClaudeCodeSettings): LanguageModelV2;
 
   /**
    * Creates a language model instance for text generation.
@@ -42,7 +42,7 @@ export interface ClaudeCodeProvider extends ProviderV1 {
   languageModel(
     modelId: ClaudeCodeModelId,
     settings?: ClaudeCodeSettings,
-  ): LanguageModelV1;
+  ): LanguageModelV2;
 
   /**
    * Alias for `languageModel()` to maintain compatibility with AI SDK patterns.
@@ -54,7 +54,9 @@ export interface ClaudeCodeProvider extends ProviderV1 {
   chat(
     modelId: ClaudeCodeModelId,
     settings?: ClaudeCodeSettings,
-  ): LanguageModelV1;
+  ): LanguageModelV2;
+
+  imageModel(modelId: string): never;
 }
 
 /**
@@ -118,7 +120,7 @@ export function createClaudeCode(
   const createModel = (
     modelId: ClaudeCodeModelId,
     settings: ClaudeCodeSettings = {},
-  ): LanguageModelV1 => {
+  ): LanguageModelV2 => {
     const mergedSettings = {
       ...options.defaultSettings,
       ...settings,
@@ -158,6 +160,13 @@ export function createClaudeCode(
     throw new NoSuchModelError({
       modelId,
       modelType: 'textEmbeddingModel',
+    });
+  };
+
+  provider.imageModel = (modelId: string) => {
+    throw new NoSuchModelError({
+      modelId,
+      modelType: 'imageModel',
     });
   };
 

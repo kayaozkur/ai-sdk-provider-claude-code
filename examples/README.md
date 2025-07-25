@@ -2,6 +2,8 @@
 
 This directory contains curated examples demonstrating the most important features of the Claude Code AI SDK Provider. Each example serves a specific purpose and demonstrates a key pattern or capability.
 
+> **Note**: These examples are written for Vercel AI SDK v5-beta. If you're using AI SDK v4, please refer to the v4 branch.
+
 ## Prerequisites
 
 1. Install and authenticate Claude Code SDK:
@@ -135,6 +137,22 @@ npx tsx examples/test-session.ts
 
 ## Common Patterns
 
+### Object Generation
+```typescript
+import { generateObject } from 'ai';
+import { z } from 'zod';
+
+const { object } = await generateObject({
+  model: claudeCode('sonnet'),
+  schema: z.object({
+    name: z.string(),
+    age: z.number(),
+    email: z.string().email(),
+  }),
+  prompt: 'Generate a random user profile',
+});
+```
+
 ### Error Handling
 ```typescript
 import { isAuthenticationError } from '../dist/index.js';
@@ -150,7 +168,9 @@ try {
 
 ### Message History for Conversations
 ```typescript
-const messages = [
+import type { ModelMessage } from 'ai';
+
+const messages: ModelMessage[] = [
   { role: 'user', content: 'Hello, my name is Alice' },
   { role: 'assistant', content: 'Nice to meet you, Alice!' },
   { role: 'user', content: 'What did I just tell you?' }
@@ -160,6 +180,21 @@ const { text } = await generateText({
   model: claudeCode('sonnet'),
   messages,
 });
+```
+
+### Streaming Responses
+```typescript
+import { streamText } from 'ai';
+
+const result = streamText({
+  model: claudeCode('sonnet'),
+  prompt: 'Write a story...',
+});
+
+// Stream the response in real-time
+for await (const chunk of result.textStream) {
+  process.stdout.write(chunk);
+}
 ```
 
 ### Custom Timeouts
