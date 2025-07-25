@@ -1,0 +1,72 @@
+# Integrated Dependency Configuration
+# Combines fork-first protection with automated updates
+
+project:
+  name: ai-sdk-provider-claude-code
+  upstream: https://github.com/ben-vargas/ai-sdk-provider-claude-code
+  fork: https://github.com/kayaozkur/proj_dep_ai-sdk-provider-claude-code
+  
+protection:
+  fork_prefix: proj_dep_
+  create_backups: true
+  max_backups: 5
+  test_before_update: true
+  rollback_on_failure: true
+
+critical_dependencies:
+  "@anthropic-ai/claude-code":
+    priority: high
+    version_strategy: exact  # Use exact versioning
+    update_frequency: twice_daily
+    tests:
+      - npm test
+      - npm run example:basic
+    notifications: immediate
+
+sync_strategy:
+  upstream:
+    frequency: daily
+    create_pr: true
+    auto_merge: false
+    conflict_handling: manual
+  
+  dependencies:
+    frequency: weekly
+    group_updates: true
+    test_all: true
+    
+  fork_protection:
+    verify_before_sync: true
+    maintain_prefix: true
+    backup_before_major: true
+
+testing:
+  pre_update:
+    - npm run lint
+    - npm run typecheck
+    - npm test
+  
+  post_update:
+    - npm run build
+    - npm test
+    - npm run example:all
+  
+  rollback_triggers:
+    - test_failure
+    - build_failure
+    - type_errors
+
+notifications:
+  slack: false
+  email: false
+  github_issues: true
+  
+automation:
+  dependabot: enabled
+  upstream_sync: enabled
+  fork_management: enabled
+  claude_code_monitor: enabled
+  
+  # Disable conflicting automations
+  disable:
+    - none
