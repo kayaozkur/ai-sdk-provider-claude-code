@@ -1,0 +1,98 @@
+name: Sync with Upstream
+
+on:
+  schedule:
+    # Run every day at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      sync_branch:
+        description: 'Branch to sync from upstream'
+        required: false
+        default: 'main'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/ben-vargas/ai-sdk-provider-claude-code.git || true
+          git fetch upstream
+      
+      - name: Create sync branch
+        run: |
+          SYNC_BRANCH="sync-upstream-$(date +%Y%m%d-%H%M%S)"
+          echo "SYNC_BRANCH=$SYNC_BRANCH" >> $GITHUB_ENV
+          git checkout -b $SYNC_BRANCH
+      
+      - name: Merge upstream changes
+        run: |
+          # Try to merge upstream/main
+          git merge upstream/${{ github.event.inputs.sync_branch || 'main' }} --no-edit || {
+            echo "Merge conflicts detected. Creating PR with conflicts to resolve manually."
+            echo "MERGE_CONFLICTS=true" >> $GITHUB_ENV
+          }
+      
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet origin/main; then
+            echo "No changes to sync"
+            echo "HAS_CHANGES=false" >> $GITHUB_ENV
+          else
+            echo "Changes detected"
+            echo "HAS_CHANGES=true" >> $GITHUB_ENV
+          fi
+      
+      - name: Push changes
+        if: env.HAS_CHANGES == 'true'
+        run: |
+          git push origin ${{ env.SYNC_BRANCH }}
+      
+      - name: Create Pull Request
+        if: env.HAS_CHANGES == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: ${{ env.SYNC_BRANCH }}
+          title: "🔄 Sync with upstream repository"
+          body: |
+            ## Automated Upstream Sync
+            
+            This PR syncs changes from the upstream repository: [ben-vargas/ai-sdk-provider-claude-code](https://github.com/ben-vargas/ai-sdk-provider-claude-code)
+            
+            ### What's included:
+            - Latest changes from upstream `${{ github.event.inputs.sync_branch || 'main' }}` branch
+            - Preserves your custom modifications
+            
+            ### Merge conflicts:
+            ${{ env.MERGE_CONFLICTS == 'true' && '⚠️ **This PR has merge conflicts that need to be resolved manually**' || '✅ No merge conflicts detected' }}
+            
+            ### Next steps:
+            1. Review the changes
+            2. Resolve any conflicts if present
+            3. Test the changes locally
+            4. Merge when ready
+            
+            ---
+            *This PR was automatically created by the sync-upstream workflow*
+          labels: |
+            upstream-sync
+            automated
+          assignees: kayaozkur
