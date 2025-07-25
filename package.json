@@ -10,13 +10,13 @@
         "language-model",
         "llm"
     ],
-    "homepage": "https://github.com/ben-vargas/ai-sdk-provider-claude-code",
+    "homepage": "https://github.com/kayaozkur/ai-sdk-provider-claude-code",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/ben-vargas/ai-sdk-provider-claude-code.git"
+        "url": "git+https://github.com/kayaozkur/ai-sdk-provider-claude-code.git"
     },
     "bugs": {
-        "url": "https://github.com/ben-vargas/ai-sdk-provider-claude-code/issues"
+        "url": "https://github.com/kayaozkur/ai-sdk-provider-claude-code/issues"
     },
     "license": "MIT",
     "author": "Ben Vargas",
@@ -66,7 +66,7 @@
     "dependencies": {
         "@ai-sdk/provider": "1.1.3",
         "@ai-sdk/provider-utils": "2.2.8",
-        "@anthropic-ai/claude-code": "^1.0.33",
+        "@anthropic-ai/claude-code": "^1.0.60",
         "jsonc-parser": "^3.3.1"
     },
     "devDependencies": {

@@ -16,6 +16,15 @@
 ## Installation
 
 ### 1. Install and authenticate the CLI
+
+#### Windows
+```bash
+# Install Claude Code CLI (now with native Windows support!)
+npm install -g @anthropic-ai/claude-code
+claude login
+```
+
+#### macOS/Linux
 ```bash
 npm install -g @anthropic-ai/claude-code
 claude login
@@ -63,16 +72,17 @@ console.log(text);
 
 ## Core Features
 
-- 🚀 Vercel AI SDK compatibility
-- 🔄 Streaming support
-- 💬 Multi-turn conversations
-- 🎯 Object generation with JSON schemas
-- 🛑 AbortSignal support
-- 🔧 Tool management (MCP servers, permissions)
+- Vercel AI SDK compatibility
+- Streaming support
+- Multi-turn conversations
+- Object generation with JSON schemas
+- AbortSignal support
+- Tool management (MCP servers, permissions)
 
 ## Limitations
 
 - Requires Node.js ≥ 18
+- Works on Windows, macOS, and Linux (native Windows support as of Claude Code v1.0.60+)
 - No image support
 - Some AI SDK parameters unsupported (temperature, maxTokens, etc.)
 
