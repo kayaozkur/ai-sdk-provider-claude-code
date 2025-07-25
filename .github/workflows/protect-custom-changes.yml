@@ -1,0 +1,115 @@
+name: Protect Custom Changes
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  track-custom-changes:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'upstream-sync') || contains(github.event.pull_request.labels.*.name, 'automated')
+    
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      
+      - name: Identify custom changes
+        run: |
+          # Add upstream remote
+          git remote add upstream https://github.com/ben-vargas/ai-sdk-provider-claude-code.git || true
+          git fetch upstream main
+          
+          # Create a file to track custom changes
+          echo "# Custom Changes Report" > custom-changes-report.md
+          echo "" >> custom-changes-report.md
+          echo "This report identifies customizations that differ from upstream." >> custom-changes-report.md
+          echo "" >> custom-changes-report.md
+          
+          # Find files that exist in our repo but not in upstream
+          echo "## New Files (not in upstream):" >> custom-changes-report.md
+          comm -23 <(git ls-tree -r HEAD --name-only | sort) <(git ls-tree -r upstream/main --name-only | sort) >> custom-changes-report.md
+          echo "" >> custom-changes-report.md
+          
+          # Find files with custom modifications
+          echo "## Modified Files (different from upstream):" >> custom-changes-report.md
+          for file in $(git ls-tree -r HEAD --name-only); do
+            if git ls-tree -r upstream/main --name-only | grep -q "^$file$"; then
+              if ! git diff --quiet HEAD:$file upstream/main:$file 2>/dev/null; then
+                echo "- $file" >> custom-changes-report.md
+              fi
+            fi
+          done
+          echo "" >> custom-changes-report.md
+          
+          # Show specific customizations in key files
+          echo "## Key Customizations:" >> custom-changes-report.md
+          
+          # Check for custom GitHub workflows
+          if [ -d ".github/workflows" ]; then
+            echo "### GitHub Workflows:" >> custom-changes-report.md
+            ls -la .github/workflows/ | grep -v "^total" | grep -v "^d" | awk '{print "- " $9}' >> custom-changes-report.md
+            echo "" >> custom-changes-report.md
+          fi
+          
+          # Store report as artifact
+          cp custom-changes-report.md /tmp/
+      
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('/tmp/custom-changes-report.md', 'utf8');
+            
+            const comment = `## 🛡️ Custom Changes Protection Check
+            
+            I've identified your customizations to ensure they're preserved during this sync.
+            
+            ${report}
+            
+            ### ⚠️ Important Notes:
+            - Review the changes carefully to ensure your customizations aren't overwritten
+            - If conflicts exist, they need manual resolution
+            - Your custom GitHub workflows and configurations are preserved
+            - Test thoroughly after merging
+            
+            ### 🔍 Verification Steps:
+            1. Check that your custom files are still present
+            2. Verify your modifications are intact
+            3. Ensure GitHub workflows weren't removed
+            4. Run tests to confirm functionality`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  backup-before-merge:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'upstream-sync') || contains(github.event.pull_request.labels.*.name, 'dependencies'))
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Create backup tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Create a backup tag before merge
+          TAG_NAME="backup-$(date +%Y%m%d-%H%M%S)-pre-${{ github.event.pull_request.number }}"
+          git tag -a $TAG_NAME -m "Backup before PR #${{ github.event.pull_request.number }} merge"
+          git push origin $TAG_NAME
+          
+          echo "Created backup tag: $TAG_NAME"
