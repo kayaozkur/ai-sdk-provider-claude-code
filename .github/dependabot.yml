@@ -26,14 +26,14 @@ updates:
         patterns:
           - "@ai-sdk/*"
           - "ai"
-    # Priority for @anthropic-ai/claude-code
-    allow:
+    # Ignore @anthropic-ai/claude-code as it's handled by dedicated workflow
+    ignore:
       - dependency-name: "@anthropic-ai/claude-code"
-    # Automatically merge patch and minor updates for claude-code
+    # Automatically merge patch and minor updates
     labels:
       - "dependencies"
       - "automated"
     reviewers:
-      - "kayaozkur"
+      - "${{ github.repository_owner }}"
     assignees:
-      - "kayaozkur"
+      - "${{ github.repository_owner }}"
