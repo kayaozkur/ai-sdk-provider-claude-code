@@ -1,3 +1,5 @@
+There is an original fork of this repo by Ben Vargas, please check that repo as well. 
+
 <p align="center">
   <img src="https://img.shields.io/badge/status-beta-FF6700" alt="beta status">
   <a href="https://www.npmjs.com/package/ai-sdk-provider-claude-code"><img src="https://img.shields.io/npm/v/ai-sdk-provider-claude-code/beta?color=00A79E" alt="npm beta version" /></a>
