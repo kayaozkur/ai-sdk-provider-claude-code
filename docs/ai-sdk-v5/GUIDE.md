@@ -1,5 +1,7 @@
 # Usage Guide (AI SDK v5)
 
+> **Note**: This guide covers the latest version using Claude Code SDK 1.0.83 with AI SDK v5 stable.
+
 ## Essential Examples
 
 ### Streaming Responses
