@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2025-08-17
+
+### Changed
+- Updated `@anthropic-ai/claude-code` to 1.0.83 (latest available)
+- Merged improvements from upstream ben-vargas repository
+- Updated repository structure and documentation
+- Fixed repository URLs to point to kayaozkur fork
+- Consolidated branch management to single main branch
+- Updated to stable AI SDK v5 (from v5-beta)
+- Updated dependencies to stable versions:
+  - `@ai-sdk/provider`: 2.0.0
+  - `@ai-sdk/provider-utils`: 3.0.3
+  - `ai` (devDependency): 5.0.14
+- Changed to fixed versioning for dependencies for better stability
+- Removed beta references from documentation and package.json
+
+## [1.0.1] - 2025-08-15
+
+### Changed
+- Updated to stable AI SDK v5 (from v5-beta)
+- Updated dependencies to stable versions:
+  - `@ai-sdk/provider`: 2.0.0
+  - `@ai-sdk/provider-utils`: 3.0.3
+  - `@anthropic-ai/claude-code`: 1.0.81
+  - `ai` (devDependency): 5.0.14
+- Changed to fixed versioning for dependencies for better stability
+- Removed beta references from documentation and package.json
+- Updated package description to reflect stable v5 support
 ## [1.0.0-beta.1] - 2025-07-24
 
 ### Changed
