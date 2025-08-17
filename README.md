@@ -28,6 +28,8 @@ claude login
 npm install ai-sdk-provider-claude-code@beta ai@beta
 ```
 
+> **Note**: This provider is regularly updated to maintain compatibility with the latest Claude Code SDK versions (currently 1.0.83).
+
 ## Disclaimer
 
 **This is an unofficial community provider** and is not affiliated with or endorsed by Anthropic or Vercel. By using this provider:
