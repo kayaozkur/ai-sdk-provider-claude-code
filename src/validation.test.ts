@@ -38,7 +38,10 @@ describe('claudeCodeSettingsSchema', () => {
     const result = claudeCodeSettingsSchema.safeParse(settings);
     expect(result.success).toBe(false);
     if (!result.success) {
-      expect(result.error.errors[0].message).toContain('greater than or equal to 1');
+      // Support both Zod v3 (errors) and v4 (issues)
+      const issues = (result.error as any).errors || result.error.issues;
+      // Support both v3 and v4 error message formats
+      expect(issues[0].message).toMatch(/greater than or equal to 1|Too small.*>=1/);
     }
   });
 
@@ -228,6 +231,18 @@ describe('validateSettings', () => {
     };
     expect(validateSettings(validSSE).valid).toBe(true);
 
+    // Valid HTTP server
+    const validHTTP = {
+      mcpServers: {
+        apiServer: {
+          type: 'http',
+          url: 'https://example.com/api',
+          headers: { 'Authorization': 'Bearer token' }
+        }
+      }
+    };
+    expect(validateSettings(validHTTP).valid).toBe(true);
+
     // Invalid - missing required fields
     const invalidMissingCommand = {
       mcpServers: {
@@ -252,6 +267,19 @@ describe('validateSettings', () => {
     const result2 = validateSettings(invalidSSEMissingUrl);
     expect(result2.valid).toBe(false);
     expect(result2.errors[0]).toContain('mcpServers');
+
+    // Invalid - HTTP missing url
+    const invalidHTTPMissingUrl = {
+      mcpServers: {
+        invalid: {
+          type: 'http',
+          headers: { 'test': 'value' }
+        }
+      }
+    };
+    const result3 = validateSettings(invalidHTTPMissingUrl);
+    expect(result3.valid).toBe(false);
+    expect(result3.errors[0]).toContain('mcpServers');
   });
 });
 
